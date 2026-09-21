@@ -1,0 +1,1522 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام إدارة ساحة الحاويات المتكامل - Yard Management System (YMS)</title>
+    
+    <!-- Google Fonts: Cairo & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome 6 Pro CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            500: '#0284c7',
+                            600: '#026597',
+                            700: '#034a70',
+                            800: '#073652',
+                            900: '#0a2339',
+                            950: '#061626'
+                        },
+                        accent: {
+                            amber: '#f59e0b',
+                            emerald: '#10b981',
+                            rose: '#f43f5e',
+                            indigo: '#6366f1'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Cairo', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #0284c7;
+        }
+
+        /* Grid Slot Hover Effects */
+        .slot-card {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .slot-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(2, 132, 199, 0.25);
+        }
+
+        /* Glassmorphism Effect */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .light .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+        }
+
+        /* Toast Animation */
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .toast-animate {
+            animation: slideInRight 0.3s ease forwards;
+        }
+
+        /* Print Style Adjustments */
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; color: black !important; }
+            .print-container { width: 100% !important; margin: 0 !important; padding: 0 !important; }
+        }
+    </style>
+</head>
+
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-brand-500 selection:text-white">
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="fixed top-5 left-5 z-50 flex flex-col gap-3 max-w-sm pointer-events-none"></div>
+
+    <!-- Main Wrapper -->
+    <div class="flex min-h-screen overflow-hidden">
+
+        <!-- Sidebar -->
+        <aside id="sidebar" class="w-72 bg-slate-900 border-l border-slate-800 flex flex-col justify-between transition-all duration-300 z-30 fixed lg:relative h-full -right-72 lg:right-0 no-print">
+            <div>
+                <!-- Brand Logo & Header -->
+                <div class="p-5 border-b border-slate-800/80 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-brand-500 flex items-center justify-center text-white shadow-lg shadow-brand-500/30">
+                            <i class="fa-solid fa-boxes-stacked text-xl"></i>
+                        </div>
+                        <div>
+                            <h1 class="font-black text-lg text-white leading-none tracking-wide">YMS ENTERPRISE</h1>
+                            <span class="text-xs text-brand-400 font-medium">نظام إدارة ساحة الحاويات</span>
+                        </div>
+                    </div>
+                    <button id="closeSidebarBtn" class="lg:hidden text-slate-400 hover:text-white p-1">
+                        <i class="fa-solid fa-xmark text-xl"></i>
+                    </button>
+                </div>
+
+                <!-- Navigation Links -->
+                <nav class="p-4 space-y-1.5">
+                    <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn active flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-semibold transition-all bg-brand-600/20 text-brand-400 border border-brand-500/30">
+                        <i class="fa-solid fa-chart-pie w-5 text-center text-lg"></i>
+                        <span>لوحة التحكم والإحصائيات</span>
+                    </button>
+
+                    <button onclick="switchTab('yardMap')" id="nav-yardMap" class="nav-btn flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
+                        <i class="fa-solid fa-map-location-dot w-5 text-center text-lg"></i>
+                        <span>الخريطة التفاعلية للساحة</span>
+                    </button>
+
+                    <button onclick="switchTab('containers')" id="nav-containers" class="nav-btn flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
+                        <i class="fa-solid fa-truck-container w-5 text-center text-lg"></i>
+                        <span>جدول الحاويات والعمليات</span>
+                    </button>
+
+                    <button onclick="switchTab('gateIn')" id="nav-gateIn" class="nav-btn flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
+                        <i class="fa-solid fa-right-to-bracket w-5 text-center text-lg text-emerald-400"></i>
+                        <span>تسجيل دخول حاوية (Gate In)</span>
+                    </button>
+
+                    <button onclick="switchTab('reports')" id="nav-reports" class="nav-btn flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
+                        <i class="fa-solid fa-file-invoice w-5 text-center text-lg"></i>
+                        <span>التقارير والتصدير والطباعة</span>
+                    </button>
+
+                    <button onclick="switchTab('deployGuide')" id="nav-deployGuide" class="nav-btn flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
+                        <i class="fa-solid fa-globe w-5 text-center text-lg text-amber-400"></i>
+                        <span>الدومين المجاني والنشر</span>
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Sidebar Footer Status -->
+            <div class="p-4 border-t border-slate-800/80 bg-slate-900/50">
+                <div class="p-3 rounded-xl bg-slate-800/50 border border-slate-700/50 text-xs text-slate-300 space-y-2">
+                    <div class="flex justify-between items-center">
+                        <span class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            حالة الساحة:
+                        </span>
+                        <span class="font-bold text-emerald-400" id="sidebarYardStatus">نشط</span>
+                    </div>
+                    <div class="flex justify-between text-slate-400">
+                        <span>إجمالي الطاقة:</span>
+                        <span class="font-mono" id="sidebarYardCapacity">250 حاوية</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Content Area -->
+        <main class="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
+            
+            <!-- Top Bar Navbar -->
+            <header class="h-16 border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-20 px-4 sm:px-6 flex items-center justify-between no-print">
+                <div class="flex items-center gap-3">
+                    <button id="openSidebarBtn" class="lg:hidden p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white">
+                        <i class="fa-solid fa-bars text-lg"></i>
+                    </button>
+                    <div class="hidden sm:flex items-center gap-2 text-xs font-mono text-slate-400 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/50">
+                        <i class="fa-solid fa-clock text-brand-400"></i>
+                        <span id="currentTime">2026-09-21 16:30:00</span>
+                    </div>
+                </div>
+
+                <!-- Action Controls in Topbar -->
+                <div class="flex items-center gap-3">
+                    <button onclick="openGateInModal()" class="px-3.5 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-lg shadow-brand-600/20 transition-all">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>إضافة حاوية</span>
+                    </button>
+
+                    <button onclick="resetToInitialData()" title="إعادة تعيين البيانات للبيانات الأصلية" class="p-2.5 rounded-xl bg-slate-800 text-slate-400 hover:text-amber-400 hover:bg-slate-700 transition-all border border-slate-700/50">
+                        <i class="fa-solid fa-rotate-left"></i>
+                    </button>
+
+                    <button id="themeToggleBtn" onclick="toggleTheme()" title="تبديل الوضع الداكن / الفاتح" class="p-2.5 rounded-xl bg-slate-800 text-slate-400 hover:text-amber-300 hover:bg-slate-700 transition-all border border-slate-700/50">
+                        <i class="fa-solid fa-moon"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Main Content Containers (Dynamic Tabs) -->
+            <div class="p-4 sm:p-6 lg:p-8 space-y-6 flex-1">
+
+                <!-- SECTION 1: DASHBOARD -->
+                <section id="section-dashboard" class="space-y-6">
+                    
+                    <!-- KPI Cards Grid -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                        <!-- Total Containers -->
+                        <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group">
+                            <div class="absolute -left-4 -bottom-4 w-24 h-24 bg-brand-500/10 rounded-full blur-xl group-hover:bg-brand-500/20 transition-all"></div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">إجمالي الحاويات بالساحة</span>
+                                <div class="w-10 h-10 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-400">
+                                    <i class="fa-solid fa-cubes text-lg"></i>
+                                </div>
+                            </div>
+                            <div class="mt-4 flex items-baseline gap-2">
+                                <span id="kpiTotalContainers" class="text-3xl font-extrabold text-white font-mono">0</span>
+                                <span class="text-xs text-slate-400">حاوية</span>
+                            </div>
+                            <div class="mt-2 text-xs text-emerald-400 flex items-center gap-1">
+                                <i class="fa-solid fa-arrow-up-right"></i>
+                                <span>جاهزة للعمليات</span>
+                            </div>
+                        </div>
+
+                        <!-- Total Capacity & Utilization -->
+                        <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group">
+                            <div class="absolute -left-4 -bottom-4 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl group-hover:bg-indigo-500/20 transition-all"></div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">نسبة إشغال الساحة</span>
+                                <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                                    <i class="fa-solid fa-chart-line text-lg"></i>
+                                </div>
+                            </div>
+                            <div class="mt-4 flex items-baseline gap-2">
+                                <span id="kpiCapacityRate" class="text-3xl font-extrabold text-white font-mono">0%</span>
+                                <span class="text-xs text-slate-400" id="kpiOccupiedSlots">0 / 250 شاطئ</span>
+                            </div>
+                            <!-- Progress Bar -->
+                            <div class="mt-3 w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                                <div id="kpiProgressBar" class="bg-gradient-to-r from-brand-500 to-indigo-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Active Zones -->
+                        <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group">
+                            <div class="absolute -left-4 -bottom-4 w-24 h-24 bg-amber-500/10 rounded-full blur-xl group-hover:bg-amber-500/20 transition-all"></div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">المربعات النشطة (Zones)</span>
+                                <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                                    <i class="fa-solid fa-border-all text-lg"></i>
+                                </div>
+                            </div>
+                            <div class="mt-4 flex items-baseline gap-2">
+                                <span id="kpiActiveZones" class="text-3xl font-extrabold text-white font-mono">0</span>
+                                <span class="text-xs text-slate-400">مربع مُستغل</span>
+                            </div>
+                            <div class="mt-2 text-xs text-slate-400">
+                                تشمل A-1 إلى A-17
+                            </div>
+                        </div>
+
+                        <!-- Today Operations -->
+                        <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group">
+                            <div class="absolute -left-4 -bottom-4 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl group-hover:bg-emerald-500/20 transition-all"></div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">عمليات اليوم (دخول/خروج)</span>
+                                <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                                    <i class="fa-solid fa-right-left text-lg"></i>
+                                </div>
+                            </div>
+                            <div class="mt-4 flex items-baseline gap-4">
+                                <div class="flex items-baseline gap-1">
+                                    <i class="fa-solid fa-arrow-down text-xs text-emerald-400"></i>
+                                    <span id="kpiGateInToday" class="text-2xl font-bold text-emerald-400 font-mono">0</span>
+                                    <span class="text-xs text-slate-400">دخول</span>
+                                </div>
+                                <div class="flex items-baseline gap-1">
+                                    <i class="fa-solid fa-arrow-up text-xs text-rose-400"></i>
+                                    <span id="kpiGateOutToday" class="text-2xl font-bold text-rose-400 font-mono">0</span>
+                                    <span class="text-xs text-slate-400">خروج</span>
+                                </div>
+                            </div>
+                            <div class="mt-2 text-xs text-slate-400">
+                                مُحدث لحظياً
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Grid -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Chart 1: Distribution by Zone -->
+                        <div class="glass-panel p-5 rounded-2xl lg:col-span-2 space-y-4">
+                            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                                <h3 class="font-bold text-slate-200 flex items-center gap-2">
+                                    <i class="fa-solid fa-chart-column text-brand-400"></i>
+                                    توزيع الحاويات حسب المربعات (Zones Distribution)
+                                </h3>
+                                <span class="text-xs font-mono bg-slate-800 text-slate-400 px-2.5 py-1 rounded-lg">A-1 to A-17</span>
+                            </div>
+                            <div class="h-72 w-full">
+                                <canvas id="zoneDistributionChart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Chart 2: Shipping Lines Breakdown -->
+                        <div class="glass-panel p-5 rounded-2xl space-y-4">
+                            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                                <h3 class="font-bold text-slate-200 flex items-center gap-2">
+                                    <i class="fa-solid fa-ship text-indigo-400"></i>
+                                    توزيع الخطوط الملاكية (Lines)
+                                </h3>
+                            </div>
+                            <div class="h-72 w-full flex items-center justify-center">
+                                <canvas id="shippingLineChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Zone Snapshot Table -->
+                    <div class="glass-panel p-5 rounded-2xl space-y-4">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                            <h3 class="font-bold text-slate-200 flex items-center gap-2">
+                                <i class="fa-solid fa-table-cells text-amber-400"></i>
+                                ملخص سعة واشغال المربعات
+                            </h3>
+                            <button onclick="switchTab('yardMap')" class="text-xs text-brand-400 hover:text-brand-300 font-medium flex items-center gap-1">
+                                الانتقال للخريطة المباشرة <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3" id="quickZoneGrid">
+                            <!-- JS Dynamically injects Zone summary cards here -->
+                        </div>
+                    </div>
+
+                </section>
+
+                <!-- SECTION 2: INTERACTIVE YARD MAP -->
+                <section id="section-yardMap" class="hidden space-y-6">
+                    <div class="glass-panel p-5 rounded-2xl space-y-4">
+                        <!-- Yard Map Filter & Header -->
+                        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                            <div>
+                                <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-map-location-dot text-brand-400"></i>
+                                    المخطط التفاعلي لساحة الحاويات (Interactive Yard Visualizer)
+                                </h2>
+                                <p class="text-xs text-slate-400 mt-1">اختر المربع لعرض أماكن الحاويات والشواغر بداخل الشواطئ (Slots 1 - 20)</p>
+                            </div>
+
+                            <!-- Zone Selector Pill Navigation -->
+                            <div class="flex items-center gap-2 overflow-x-auto pb-2 lg:pb-0 scrollbar-none" id="zoneFilterPills">
+                                <!-- JS Populates Zone Buttons -->
+                            </div>
+                        </div>
+
+                        <!-- Yard Map Legends -->
+                        <div class="flex flex-wrap items-center gap-4 text-xs bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
+                            <span class="text-slate-400 font-semibold">دليل الألوان:</span>
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-3.5 h-3.5 rounded bg-slate-800 border border-slate-700"></span>
+                                <span class="text-slate-300">شاغر (Empty)</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-3.5 h-3.5 rounded bg-brand-600"></span>
+                                <span class="text-slate-300">حاوية جافة (Dry)</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-3.5 h-3.5 rounded bg-cyan-600"></span>
+                                <span class="text-slate-300">مبردة (Reefer)</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-3.5 h-3.5 rounded bg-amber-600"></span>
+                                <span class="text-slate-300">صيانة/خاصة (Flat/Tank)</span>
+                            </div>
+                        </div>
+
+                        <!-- Zone Title & Detail Header -->
+                        <div class="flex items-center justify-between bg-brand-950/40 p-4 rounded-xl border border-brand-800/30">
+                            <div class="flex items-center gap-3">
+                                <span id="selectedZoneBadge" class="px-3 py-1 rounded-lg bg-brand-600 text-white font-mono font-bold text-lg">A-1</span>
+                                <div>
+                                    <h4 id="selectedZoneTitle" class="font-bold text-white">تفاصيل المربع A-1</h4>
+                                    <span id="selectedZoneStats" class="text-xs text-slate-400">19 حاوية مشغولة من أصل 20 موقع</span>
+                                </div>
+                            </div>
+                            <button onclick="openGateInForZone()" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-all">
+                                <i class="fa-solid fa-plus"></i>
+                                <span>إضافة حاوية بهذا المربع</span>
+                            </button>
+                        </div>
+
+                        <!-- Interactive Grid Slots View -->
+                        <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-10 gap-3 pt-2" id="yardGridSlots">
+                            <!-- JS Renders Slots for selected Zone -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 3: CONTAINERS DATA TABLE -->
+                <section id="section-containers" class="hidden space-y-6">
+                    <div class="glass-panel p-5 rounded-2xl space-y-4">
+                        <!-- Table Top Controls -->
+                        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                            <div>
+                                <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-list-check text-brand-400"></i>
+                                    جدول الحاويات والعمليات التفصيلي
+                                </h2>
+                                <p class="text-xs text-slate-400 mt-1">البحث والفلترة المباشرة واستخراج سجلات الحركة بالكامل</p>
+                            </div>
+
+                            <!-- Search & Filter Controls -->
+                            <div class="flex flex-wrap items-center gap-2">
+                                <!-- Search Input -->
+                                <div class="relative min-w-[220px]">
+                                    <i class="fa-solid fa-magnifying-glass absolute right-3 top-3 text-slate-400 text-sm"></i>
+                                    <input type="text" id="tableSearchInput" oninput="filterContainersTable()" placeholder="بحث برقم الحاوية أو الخط..." class="w-full pr-9 pl-3 py-2 text-xs rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none">
+                                </div>
+
+                                <!-- Zone Filter Dropdown -->
+                                <select id="tableZoneFilter" onchange="filterContainersTable()" class="py-2 px-3 text-xs rounded-xl bg-slate-900 border border-slate-700 text-white focus:border-brand-500 focus:outline-none">
+                                    <option value="">جميع المربعات (Zones)</option>
+                                </select>
+
+                                <!-- Shipping Line Filter -->
+                                <select id="tableLineFilter" onchange="filterContainersTable()" class="py-2 px-3 text-xs rounded-xl bg-slate-900 border border-slate-700 text-white focus:border-brand-500 focus:outline-none">
+                                    <option value="">جميع الخطوط الملاكية</option>
+                                </select>
+
+                                <!-- Clear Filters Button -->
+                                <button onclick="resetTableFilters()" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition-all" title="إعادة تعيين الفلاتر">
+                                    <i class="fa-solid fa-filter-circle-xmark"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Data Table Container -->
+                        <div class="overflow-x-auto rounded-xl border border-slate-800">
+                            <table class="w-full text-right text-xs">
+                                <thead class="bg-slate-900 text-slate-400 font-semibold border-b border-slate-800">
+                                    <tr>
+                                        <th class="p-3">#</th>
+                                        <th class="p-3">رقم الحاوية (Container No)</th>
+                                        <th class="p-3">المربع (Zone)</th>
+                                        <th class="p-3">اللوكيشن (Location)</th>
+                                        <th class="p-3">الخط الملاحي</th>
+                                        <th class="p-3">الحجم / النوع</th>
+                                        <th class="p-3">تاريخ الدخول</th>
+                                        <th class="p-3">الحالة</th>
+                                        <th class="p-3 text-center no-print">إجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="containersTableBody" class="divide-y divide-slate-800/60 font-mono text-slate-200">
+                                    <!-- JS Dynamic Row Generation -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Table Pagination / Stats -->
+                        <div class="flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 pt-2 gap-2">
+                            <div>
+                                عرض <span id="tableShowingCount" class="font-bold text-white">0</span> من إجمالي <span id="tableTotalCount" class="font-bold text-white">0</span> حاوية
+                            </div>
+                            <div class="flex items-center gap-1" id="tablePagination">
+                                <!-- Pagination controls populated via JS -->
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 4: GATE IN FORM -->
+                <section id="section-gateIn" class="hidden space-y-6">
+                    <div class="max-w-3xl mx-auto glass-panel p-6 rounded-2xl space-y-6">
+                        <div class="border-b border-slate-800 pb-4">
+                            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                                <i class="fa-solid fa-right-to-bracket text-emerald-400"></i>
+                                تسجيل دخول حاوية جديدة (Gate In Entry)
+                            </h2>
+                            <p class="text-xs text-slate-400 mt-1">قم بإدخال بيانات الحاوية والموقع المخصص بالساحة لتأكيد الدخول</p>
+                        </div>
+
+                        <form id="gateInForm" onsubmit="handleGateInSubmit(event)" class="space-y-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <!-- Container Prefix -->
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-300 mb-1">الكود / البادئة (4 أحرف) <span class="text-rose-400">*</span></label>
+                                    <input type="text" id="formPrefix" required maxlength="4" placeholder="مثال: MRSU" class="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white uppercase font-mono text-sm focus:border-brand-500 focus:outline-none">
+                                </div>
+
+                                <!-- Container Serial Number -->
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-300 mb-1">الرقم التسلسلي (7 أرقام) <span class="text-rose-400">*</span></label>
+                                    <input type="text" id="formSerial" required pattern="[0-9]{6,7}" placeholder="مثال: 0835412" class="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-sm focus:border-brand-500 focus:outline-none">
+                                </div>
+
+                                <!-- Zone Selection -->
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-300 mb-1">المربع (Zone) <span class="text-rose-400">*</span></label>
+                                    <select id="formZone" required onchange="updateFormSlotDropdown()" class="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:border-brand-500 focus:outline-none">
+                                        <!-- JS Populates Zones -->
+                                    </select>
+                                </div>
+
+                                <!-- Slot/Location Selection -->
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-300 mb-1">اللوكيشن / الشاطئ (Slot) <span class="text-rose-400">*</span></label>
+                                    <select id="formSlot" required class="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:border-brand-500 focus:outline-none">
+                                        <!-- JS Populates Available Slots -->
+                                    </select>
+                                </div>
+
+                                <!-- Shipping Line -->
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-300 mb-1">الخط الملاحي / المالك</label>
+                                    <select id="formLine" class="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:border-brand-500 focus:outline-none">
+                                        <option value="MAERSK">Maersk Line</option>
+                                        <option value="MSC">MSC</option>
+                                        <option value="CMA CGM">CMA CGM</option>
+                                        <option value="HAPAG LLOYD">Hapag-Lloyd</option>
+                                        <option value="COSCO">COSCO Shipping</option>
+                                        <option value="EVERGREEN">Evergreen</option>
+                                        <option value="ONE">Ocean Network Express (ONE)</option>
+                                        <option value="OTHER">خط ملاكي آخر</option>
+                                    </select>
+                                </div>
+
+                                <!-- Container Type -->
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-300 mb-1">نوع الحاوية</label>
+                                    <select id="formType" class="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:border-brand-500 focus:outline-none">
+                                        <option value="Dry">جافة (Dry Storage)</option>
+                                        <option value="Reefer">تبريد (Reefer)</option>
+                                        <option value="Flat Rack">قاعدة مسطحة (Flat Rack)</option>
+                                        <option value="Tank">صهريج (Tank)</option>
+                                    </select>
+                                </div>
+
+                                <!-- Container Size -->
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-300 mb-1">مقاس الحاوية</label>
+                                    <select id="formSize" class="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:border-brand-500 focus:outline-none">
+                                        <option value="40ft High Cube">40 قدم مرتفع (40ft HC)</option>
+                                        <option value="20ft Standard">20 قدم قياسي (20ft ST)</option>
+                                        <option value="40ft Standard">40 قدم قياسي (40ft ST)</option>
+                                        <option value="45ft High Cube">45 قدم (45ft HC)</option>
+                                    </select>
+                                </div>
+
+                                <!-- Truck / Driver Info -->
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-300 mb-1">رقم الشاحنة / سائق النقل</label>
+                                    <input type="text" id="formTruck" placeholder="مثال: أ ب ج 1234 / أحمد السعيد" class="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:border-brand-500 focus:outline-none">
+                                </div>
+                            </div>
+
+                            <!-- Notes -->
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1">ملاحظات الفحص الظاهري</label>
+                                <textarea id="formNotes" rows="2" placeholder="أي تلفيات أو ملاحظات خاصة على الحاوية عند الدخول..." class="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:border-brand-500 focus:outline-none"></textarea>
+                            </div>
+
+                            <!-- Form Actions -->
+                            <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+                                <button type="button" onclick="switchTab('containers')" class="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold transition-all">
+                                    إلغاء
+                                </button>
+                                <button type="submit" class="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all">
+                                    <i class="fa-solid fa-circle-check"></i>
+                                    <span>حفظ وتأكيد الدخول</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- SECTION 5: REPORTS & EXPORT -->
+                <section id="section-reports" class="hidden space-y-6">
+                    <div class="glass-panel p-6 rounded-2xl space-y-6">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                            <div>
+                                <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-file-invoice text-brand-400"></i>
+                                    التقارير والتصدير والطباعة
+                                </h2>
+                                <p class="text-xs text-slate-400 mt-1">استخراج جرد الساحة بصيغ CSV/Excel أو طباعة تقرير رسمي مجهز</p>
+                            </div>
+
+                            <div class="flex items-center gap-2">
+                                <button onclick="exportToCSV()" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all">
+                                    <i class="fa-solid fa-file-excel text-sm"></i>
+                                    <span>تصدير ملف Excel (.CSV)</span>
+                                </button>
+                                <button onclick="window.print()" class="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-brand-600/20 transition-all">
+                                    <i class="fa-solid fa-print text-sm"></i>
+                                    <span>طباعة التقرير (PDF)</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Data Import Utility -->
+                        <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+                            <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+                                <i class="fa-solid fa-file-import text-amber-400"></i>
+                                استيراد بيانات سريعة (Bulk Import CSV)
+                            </h3>
+                            <p class="text-xs text-slate-400">يمكنك رفع ملف CSV لإضافة حاويات جديدة دفعة واحدة إلى نظام الساحة.</p>
+                            <div class="flex items-center gap-3">
+                                <input type="file" id="importCsvInput" accept=".csv" class="hidden" onchange="handleImportCSV(event)">
+                                <button onclick="document.getElementById('importCsvInput').click()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 flex items-center gap-2 transition-all">
+                                    <i class="fa-solid fa-upload"></i>
+                                    <span>اختر ملف CSV للاستيراد</span>
+                                </button>
+                                <span id="importFileName" class="text-xs text-slate-500">لم يتم اختيار ملف</span>
+                            </div>
+                        </div>
+
+                        <!-- Print Template View -->
+                        <div class="print-container space-y-4 pt-4">
+                            <div class="flex items-center justify-between border-b-2 border-slate-700 pb-3">
+                                <div>
+                                    <h1 class="text-xl font-black text-white">تقرير جرد ساحة الحاويات اليومي</h1>
+                                    <span class="text-xs text-slate-400">Container Yard Inventory Official Report</span>
+                                </div>
+                                <div class="text-left text-xs font-mono text-slate-400">
+                                    <div>التاريخ: <span id="reportPrintDate">2026-09-21</span></div>
+                                    <div>إجمالي السجلات: <span id="reportTotalCount">0</span></div>
+                                </div>
+                            </div>
+
+                            <!-- Printable Summary Grid -->
+                            <div class="grid grid-cols-3 gap-4 text-center text-xs">
+                                <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-800">
+                                    <span class="text-slate-400 block">إجمالي الحاويات</span>
+                                    <span id="reportTotalBadge" class="text-lg font-bold text-brand-400 font-mono">0</span>
+                                </div>
+                                <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-800">
+                                    <span class="text-slate-400 block">عدد المربعات الشاغرة</span>
+                                    <span id="reportEmptyZonesBadge" class="text-lg font-bold text-emerald-400 font-mono">0</span>
+                                </div>
+                                <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-800">
+                                    <span class="text-slate-400 block">نسبة استغلال المساحة</span>
+                                    <span id="reportOccupancyBadge" class="text-lg font-bold text-amber-400 font-mono">0%</span>
+                                </div>
+                            </div>
+
+                            <!-- Full Table for Print -->
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-right text-xs border-collapse">
+                                    <thead>
+                                        <tr class="bg-slate-900 text-slate-300 border-b border-slate-700">
+                                            <th class="p-2">#</th>
+                                            <th class="p-2">رقم الحاوية</th>
+                                            <th class="p-2">المربع</th>
+                                            <th class="p-2">اللوكيشن</th>
+                                            <th class="p-2">الخط الملاحي</th>
+                                            <th class="p-2">النوع/المقاس</th>
+                                            <th class="p-2">تاريخ الدخول</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="reportTableBody" class="divide-y divide-slate-800 font-mono text-slate-300">
+                                        <!-- JS populates full printable rows -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 6: DEPLOYMENT GUIDE -->
+                <section id="section-deployGuide" class="hidden space-y-6">
+                    <div class="glass-panel p-6 rounded-2xl space-y-6">
+                        <div class="border-b border-slate-800 pb-4">
+                            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                                <i class="fa-solid fa-globe text-amber-400"></i>
+                                دليل رفع النظام على موقع أونلاين ودومين مجاني (100% Free Hosting)
+                            </h2>
+                            <p class="text-xs text-slate-400 mt-1">خطوات سهلة لنشر هذا النظام بالكامل بدون أي تكلفة سيرفرات أو اشتراكات</p>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <!-- Option 1: GitHub Pages -->
+                            <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3 relative group hover:border-brand-500/50 transition-all">
+                                <div class="w-10 h-10 rounded-xl bg-brand-500/10 text-brand-400 flex items-center justify-center font-bold">
+                                    <i class="fa-brands fa-github text-xl"></i>
+                                </div>
+                                <h3 class="font-bold text-white text-base">1. GitHub Pages (الأفضل والأسرع)</h3>
+                                <ol class="text-xs text-slate-300 space-y-2 list-decimal list-inside leading-relaxed">
+                                    <li>قم بإنشاء حساب مجاني على <strong class="text-brand-400">GitHub.com</strong>.</li>
+                                    <li>أنشئ مستودع جديد (New Repository) باسم <code class="bg-slate-800 px-1.5 py-0.5 rounded text-amber-300">yms-yard</code>.</li>
+                                    <li>قم برفع هذا الملف وتسميته <code class="bg-slate-800 px-1.5 py-0.5 rounded text-amber-300">index.html</code>.</li>
+                                    <li>ادخل إعدادات المستودع (Settings) -> Pages ثم اختر Branch: Main واضغط Save.</li>
+                                    <li>سيصبح نظامك أونلاين فوراً على رابط: <br><span class="text-emerald-400 font-mono dir-ltr inline-block mt-1">https://username.github.io/yms-yard/</span></li>
+                                </ol>
+                            </div>
+
+                            <!-- Option 2: Netlify -->
+                            <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3 relative group hover:border-indigo-500/50 transition-all">
+                                <div class="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold">
+                                    <i class="fa-solid fa-bolt text-xl"></i>
+                                </div>
+                                <h3 class="font-bold text-white text-base">2. Netlify (سحب وإسقاط Drag & Drop)</h3>
+                                <ol class="text-xs text-slate-300 space-y-2 list-decimal list-inside leading-relaxed">
+                                    <li>ادخل موقع <strong class="text-indigo-400">Netlify.com</strong> وسجل مجاناً.</li>
+                                    <li>ضع ملف <code class="bg-slate-800 px-1.5 py-0.5 rounded text-amber-300">index.html</code> داخل مجلد جديد على جهازك.</li>
+                                    <li>اسحب المجلد وأسقطه في منطقة (Drag and drop your site folder) في Netlify.</li>
+                                    <li>خلال 5 ثوانٍ ستحصل على رابط أونلاين مجاني ومحمي بـ SSL مجاناً!</li>
+                                </ol>
+                            </div>
+
+                            <!-- Option 3: Vercel -->
+                            <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3 relative group hover:border-emerald-500/50 transition-all">
+                                <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold">
+                                    <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+                                </div>
+                                <h3 class="font-bold text-white text-base">3. Vercel & Free Custom Domain</h3>
+                                <ol class="text-xs text-slate-300 space-y-2 list-decimal list-inside leading-relaxed">
+                                    <li>قم بربط مشروعك على <strong class="text-emerald-400">Vercel.com</strong> مباشرة بـ GitHub.</li>
+                                    <li>للحصول على دومين احترافي خاص (مثال: <code class="bg-slate-800 px-1.5 py-0.5 rounded text-amber-300">myyard.com</code>)، يمكنك شراؤه أو ربط دومين مجاني عبر إعدادات Domains.</li>
+                                    <li>يتميز Vercel و GitHub Pages بقواعد بيانات متصفح دائمة (LocalStorage) لحفظ تعديلاتك.</li>
+                                </ol>
+                            </div>
+                        </div>
+
+                        <!-- Local Data Note -->
+                        <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-start gap-3">
+                            <i class="fa-solid fa-circle-info text-base mt-0.5"></i>
+                            <div>
+                                <strong class="font-bold">ملاحظة هامة بشأن حفظ البيانات:</strong>
+                                <p class="mt-0.5 text-slate-300">جميع عمليات الدخول والتعديل والخروج التي تقوم بها تُحفظ فوراً وبشكل دائم في ذاكرة المتصفح المحلية (LocalStorage) الخاصة بجهازك أو جهاز المستخدِم دون الحاجة لقواعد بيانات مدفوعة.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- GATE OUT MODAL DIALOG -->
+    <div id="gateOutModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm hidden p-4">
+        <div class="glass-panel w-full max-w-md p-6 rounded-2xl space-y-5 border border-slate-700/80 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="font-bold text-white text-base flex items-center gap-2">
+                    <i class="fa-solid fa-right-from-bracket text-rose-400"></i>
+                    تسجيل خروج حاوية (Gate Out Confirmation)
+                </h3>
+                <button onclick="closeGateOutModal()" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3 text-xs">
+                <div class="p-3 bg-slate-900 rounded-xl border border-slate-800 space-y-1">
+                    <div class="text-slate-400">رقم الحاوية:</div>
+                    <div id="modalContainerNo" class="text-lg font-bold font-mono text-brand-400">---</div>
+                    <div class="text-slate-400 mt-2">الموقع الحالي: <span id="modalContainerLocation" class="text-white font-bold font-mono">---</span></div>
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">اسم سائق شاحنة الخروج / اللوحة</label>
+                    <input type="text" id="modalExitTruck" placeholder="مثال: شاحنة النقل السريع - 458" class="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white focus:border-brand-500 focus:outline-none">
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">سبب الخروج / الوجهة</label>
+                    <input type="text" id="modalExitReason" placeholder="مثال: تسليم للعميل / شحن لميناء الصادرات" class="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white focus:border-brand-500 focus:outline-none">
+                </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button onclick="closeGateOutModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-all">
+                    إلغاء
+                </button>
+                <button onclick="confirmGateOutAction()" class="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-rose-600/20 transition-all">
+                    <i class="fa-solid fa-check"></i>
+                    <span>تأكيد تسجيل الخروج</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Core Application Logic -->
+    <script>
+        // Initial Dataset compiled from inventory scans (Zones A-1 to A-17)
+        const INITIAL_CONTAINERS = [
+            // Zone A-1
+            { prefix: 'MRSU', serial: '0835412', zone: 'A-1', slot: 1, location: 'A-1-1', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-15 08:30' },
+            { prefix: 'MRSU', serial: '0835876', zone: 'A-1', slot: 2, location: 'A-1-2', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-15 08:45' },
+            { prefix: 'MRSU', serial: '0859184', zone: 'A-1', slot: 3, location: 'A-1-3', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-15 09:10' },
+            { prefix: 'HASU', serial: '1192440', zone: 'A-1', slot: 4, location: 'A-1-4', line: 'HAPAG LLOYD', size: '20ft Standard', type: 'Dry', entryDate: '2026-09-15 09:30' },
+            { prefix: 'MRSU', serial: '0835937', zone: 'A-1', slot: 5, location: 'A-1-5', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-15 09:50' },
+            { prefix: 'MRSU', serial: '0859420', zone: 'A-1', slot: 6, location: 'A-1-6', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-15 10:15' },
+            { prefix: 'MRSU', serial: '0836105', zone: 'A-1', slot: 7, location: 'A-1-7', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-15 10:40' },
+            { prefix: 'MRSU', serial: '0837117', zone: 'A-1', slot: 8, location: 'A-1-8', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-15 11:00' },
+            { prefix: 'MRSU', serial: '0836384', zone: 'A-1', slot: 9, location: 'A-1-9', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-15 11:20' },
+            { prefix: 'MSKU', serial: '4236108', zone: 'A-1', slot: 10, location: 'A-1-10', line: 'MAERSK', size: '20ft Standard', type: 'Reefer', entryDate: '2026-09-15 11:45' },
+            { prefix: 'SUDU', serial: '7368424', zone: 'A-1', slot: 11, location: 'A-1-11', line: 'OTHER', size: '40ft Standard', type: 'Dry', entryDate: '2026-09-15 12:10' },
+            { prefix: 'GAOU', serial: '2551894', zone: 'A-1', slot: 12, location: 'A-1-12', line: 'OTHER', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-15 12:30' },
+            { prefix: 'MRKU', serial: '9821778', zone: 'A-1', slot: 13, location: 'A-1-13', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-15 13:00' },
+            { prefix: 'MRSU', serial: '0840300', zone: 'A-1', slot: 14, location: 'A-1-14', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-15 13:20' },
+            { prefix: 'MRSU', serial: '0836168', zone: 'A-1', slot: 15, location: 'A-1-15', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-15 13:40' },
+            { prefix: 'MRSU', serial: '0839763', zone: 'A-1', slot: 16, location: 'A-1-16', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-15 14:00' },
+            { prefix: 'MSKU', serial: '5052933', zone: 'A-1', slot: 17, location: 'A-1-17', line: 'MAERSK', size: '20ft Standard', type: 'Reefer', entryDate: '2026-09-15 14:30' },
+            { prefix: 'TRHU', serial: '1951810', zone: 'A-1', slot: 18, location: 'A-1-18', line: 'OTHER', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-15 15:00' },
+            { prefix: 'MSKU', serial: '5892121', zone: 'A-1', slot: 19, location: 'A-1-19', line: 'MAERSK', size: '20ft Standard', type: 'Reefer', entryDate: '2026-09-15 15:30' },
+
+            // Zone A-2
+            { prefix: 'MRKU', serial: '7031413', zone: 'A-2', slot: 1, location: 'A-2-1', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-16 08:00' },
+            { prefix: 'MSKU', serial: '7468107', zone: 'A-2', slot: 2, location: 'A-2-2', line: 'MAERSK', size: '20ft Standard', type: 'Dry', entryDate: '2026-09-16 08:20' },
+            { prefix: 'MSKU', serial: '7846953', zone: 'A-2', slot: 3, location: 'A-2-3', line: 'MAERSK', size: '20ft Standard', type: 'Dry', entryDate: '2026-09-16 08:45' },
+            { prefix: 'HASU', serial: '1171513', zone: 'A-2', slot: 4, location: 'A-2-4', line: 'HAPAG LLOYD', size: '40ft Standard', type: 'Dry', entryDate: '2026-09-16 09:10' },
+            { prefix: 'SUDU', serial: '7455150', zone: 'A-2', slot: 5, location: 'A-2-5', line: 'OTHER', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-16 09:30' },
+            { prefix: 'MRKU', serial: '7314389', zone: 'A-2', slot: 6, location: 'A-2-6', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-16 10:00' },
+            { prefix: 'MRKU', serial: '8591198', zone: 'A-2', slot: 7, location: 'A-2-7', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-16 10:30' },
+            { prefix: 'MRKU', serial: '9387384', zone: 'A-2', slot: 8, location: 'A-2-8', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-16 11:00' },
+            { prefix: 'HASU', serial: '1354258', zone: 'A-2', slot: 9, location: 'A-2-9', line: 'HAPAG LLOYD', size: '20ft Standard', type: 'Dry', entryDate: '2026-09-16 11:30' },
+            { prefix: 'TIIU', serial: '2153868', zone: 'A-2', slot: 10, location: 'A-2-10', line: 'OTHER', size: '40ft High Cube', type: 'Tank', entryDate: '2026-09-16 12:00' },
+            { prefix: 'TTNU', serial: '1194850', zone: 'A-2', slot: 11, location: 'A-2-11', line: 'OTHER', size: '40ft Standard', type: 'Dry', entryDate: '2026-09-16 12:30' },
+            { prefix: 'MRKU', serial: '8022925', zone: 'A-2', slot: 12, location: 'A-2-12', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-16 13:00' },
+            { prefix: 'SUDU', serial: '7980734', zone: 'A-2', slot: 13, location: 'A-2-13', line: 'OTHER', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-16 13:30' },
+
+            // Zone A-3
+            { prefix: 'MRSU', serial: '8269688', zone: 'A-3', slot: 1, location: 'A-3-1', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-17 08:30' },
+            { prefix: 'MRKU', serial: '5740258', zone: 'A-3', slot: 2, location: 'A-3-2', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-17 09:00' },
+            { prefix: 'SUDU', serial: '6703606', zone: 'A-3', slot: 3, location: 'A-3-3', line: 'OTHER', size: '20ft Standard', type: 'Dry', entryDate: '2026-09-17 09:30' },
+            { prefix: 'MRSU', serial: '9213981', zone: 'A-3', slot: 4, location: 'A-3-4', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-17 10:00' },
+
+            // Zone A-4
+            { prefix: 'TCNU', serial: '1728444', zone: 'A-4', slot: 1, location: 'A-4-1', line: 'MSC', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-17 10:30' },
+            { prefix: 'MRSU', serial: '3219703', zone: 'A-4', slot: 2, location: 'A-4-2', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-17 11:00' },
+            { prefix: 'MSKU', serial: '1925356', zone: 'A-4', slot: 3, location: 'A-4-3', line: 'MAERSK', size: '20ft Standard', type: 'Reefer', entryDate: '2026-09-17 11:30' },
+            { prefix: 'MRSU', serial: '4785599', zone: 'A-4', slot: 4, location: 'A-4-4', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-17 12:00' },
+            { prefix: 'TCKU', serial: '6434788', zone: 'A-4', slot: 5, location: 'A-4-5', line: 'MSC', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-17 12:30' },
+            { prefix: 'MRSU', serial: '9616170', zone: 'A-4', slot: 6, location: 'A-4-6', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-17 13:00' },
+            { prefix: 'MRSU', serial: '5328540', zone: 'A-4', slot: 7, location: 'A-4-7', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-17 13:30' },
+
+            // Zone A-6
+            { prefix: 'MRSU', serial: '6628984', zone: 'A-6', slot: 1, location: 'A-6-1', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-18 08:15' },
+            { prefix: 'GAOU', serial: '7169360', zone: 'A-6', slot: 2, location: 'A-6-2', line: 'OTHER', size: '40ft Standard', type: 'Dry', entryDate: '2026-09-18 08:45' },
+            { prefix: 'TLLU', serial: '5963308', zone: 'A-6', slot: 3, location: 'A-6-3', line: 'OTHER', size: '20ft Standard', type: 'Dry', entryDate: '2026-09-18 09:15' },
+            { prefix: 'MRSU', serial: '9242362', zone: 'A-6', slot: 4, location: 'A-6-4', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-18 09:45' },
+            { prefix: 'MRKU', serial: '4089134', zone: 'A-6', slot: 5, location: 'A-6-5', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-18 10:15' },
+            { prefix: 'TLLU', serial: '6848356', zone: 'A-6', slot: 6, location: 'A-6-6', line: 'OTHER', size: '20ft Standard', type: 'Dry', entryDate: '2026-09-18 10:45' },
+            { prefix: 'MRSU', serial: '8078980', zone: 'A-6', slot: 7, location: 'A-6-7', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-18 11:15' },
+            { prefix: 'CAAU', serial: '4796430', zone: 'A-6', slot: 8, location: 'A-6-8', line: 'CMA CGM', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-18 11:45' },
+            { prefix: 'MRKU', serial: '3542457', zone: 'A-6', slot: 9, location: 'A-6-9', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-18 12:15' },
+
+            // Zone A-7
+            { prefix: 'MRKU', serial: '6406217', zone: 'A-7', slot: 1, location: 'A-7-1', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-18 13:00' },
+            { prefix: 'SUDU', serial: '8579808', zone: 'A-7', slot: 2, location: 'A-7-2', line: 'OTHER', size: '40ft Standard', type: 'Dry', entryDate: '2026-09-18 13:30' },
+
+            // Zone A-8
+            { prefix: 'CAAU', serial: '6653594', zone: 'A-8', slot: 1, location: 'A-8-1', line: 'CMA CGM', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-19 08:30' },
+            { prefix: 'CAAU', serial: '6658370', zone: 'A-8', slot: 2, location: 'A-8-2', line: 'CMA CGM', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-19 09:00' },
+            { prefix: 'MRSU', serial: '7570130', zone: 'A-8', slot: 3, location: 'A-8-3', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-19 09:30' },
+            { prefix: 'MRKU', serial: '4072532', zone: 'A-8', slot: 4, location: 'A-8-4', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-19 10:00' },
+            { prefix: 'TIIU', serial: '4888110', zone: 'A-8', slot: 5, location: 'A-8-5', line: 'OTHER', size: '20ft Standard', type: 'Tank', entryDate: '2026-09-19 10:30' },
+
+            // Zone A-10
+            { prefix: 'MRKU', serial: '3970080', zone: 'A-10', slot: 1, location: 'A-10-1', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-19 11:00' },
+            { prefix: 'HASU', serial: '4907700', zone: 'A-10', slot: 2, location: 'A-10-2', line: 'HAPAG LLOYD', size: '20ft Standard', type: 'Dry', entryDate: '2026-09-19 11:30' },
+            { prefix: 'MRKU', serial: '3343054', zone: 'A-10', slot: 3, location: 'A-10-3', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-19 12:00' },
+
+            // Zone A-11
+            { prefix: 'TCKU', serial: '7592279', zone: 'A-11', slot: 1, location: 'A-11-1', line: 'MSC', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-20 08:30' },
+            { prefix: 'MRSU', serial: '5595546', zone: 'A-11', slot: 2, location: 'A-11-2', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-20 09:00' },
+
+            // Zone A-12
+            { prefix: 'TCKU', serial: '6471755', zone: 'A-12', slot: 1, location: 'A-12-1', line: 'MSC', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-20 09:30' },
+            { prefix: 'SUDU', serial: '8611290', zone: 'A-12', slot: 10, location: 'A-12-10', line: 'OTHER', size: '40ft Standard', type: 'Dry', entryDate: '2026-09-20 10:00' },
+
+            // Zone A-13
+            { prefix: 'MRSU', serial: '5909950', zone: 'A-13', slot: 1, location: 'A-13-1', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-20 11:00' },
+            { prefix: 'CAAU', serial: '9861457', zone: 'A-13', slot: 2, location: 'A-13-2', line: 'CMA CGM', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-20 11:30' },
+
+            // Zone A-15
+            { prefix: 'MRKU', serial: '2328693', zone: 'A-15', slot: 1, location: 'A-15-1', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-21 08:00' },
+            { prefix: 'TEMU', serial: '7772275', zone: 'A-15', slot: 2, location: 'A-15-2', line: 'EVERGREEN', size: '40ft Standard', type: 'Dry', entryDate: '2026-09-21 08:30' },
+
+            // Zone A-17
+            { prefix: 'TCKU', serial: '7413080', zone: 'A-17', slot: 1, location: 'A-17-1', line: 'MSC', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-21 09:00' },
+            { prefix: 'MSKU', serial: '1528739', zone: 'A-17', slot: 2, location: 'A-17-2', line: 'MAERSK', size: '20ft Standard', type: 'Reefer', entryDate: '2026-09-21 09:30' },
+            { prefix: 'MRSU', serial: '9924275', zone: 'A-17', slot: 3, location: 'A-17-3', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-21 10:00' },
+            { prefix: 'MRKU', serial: '3098384', zone: 'A-17', slot: 4, location: 'A-17-4', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-21 10:30' },
+            { prefix: 'MRKU', serial: '4555253', zone: 'A-17', slot: 5, location: 'A-17-5', line: 'MAERSK', size: '40ft High Cube', type: 'Dry', entryDate: '2026-09-21 11:00' },
+            { prefix: 'FFAU', serial: '6629040', zone: 'A-17', slot: 6, location: 'A-17-6', line: 'OTHER', size: '40ft High Cube', type: 'Flat Rack', entryDate: '2026-09-21 11:30' },
+            { prefix: 'MSKU', serial: '1952496', zone: 'A-17', slot: 7, location: 'A-17-7', line: 'MAERSK', size: '20ft Standard', type: 'Reefer', entryDate: '2026-09-21 12:00' }
+        ];
+
+        // All Yard Zones List
+        const YARD_ZONES = ['A-1', 'A-2', 'A-3', 'A-4', 'A-6', 'A-7', 'A-8', 'A-10', 'A-11', 'A-12', 'A-13', 'A-15', 'A-17'];
+        const ZONE_MAX_SLOTS = 20;
+
+        // Global State Variable
+        let containers = [];
+        let selectedYardZone = 'A-1';
+        let pendingGateOutNo = null;
+
+        // Chart instances
+        let zoneChartInstance = null;
+        let lineChartInstance = null;
+
+        // Initialize App on DOM Load
+        window.addEventListener('DOMContentLoaded', () => {
+            loadContainersData();
+            setupClock();
+            setupSidebarMobile();
+            populateDropdowns();
+            renderAllViews();
+        });
+
+        function loadContainersData() {
+            const stored = localStorage.getItem('yms_containers_db');
+            if (stored) {
+                try {
+                    containers = JSON.parse(stored);
+                } catch(e) {
+                    containers = [...INITIAL_CONTAINERS];
+                }
+            } else {
+                containers = [...INITIAL_CONTAINERS];
+                saveContainersData();
+            }
+        }
+
+        function saveContainersData() {
+            localStorage.setItem('yms_containers_db', JSON.stringify(containers));
+        }
+
+        function resetToInitialData() {
+            if (confirm('هل أنت تأكد من استعادة البيانات الافتراضية الأصلية للساحة؟')) {
+                containers = [...INITIAL_CONTAINERS];
+                saveContainersData();
+                renderAllViews();
+                showToast('تم استعادة البيانات الافتراضية للساحة بنجاح', 'success');
+            }
+        }
+
+        function setupClock() {
+            const clockEl = document.getElementById('currentTime');
+            const reportDateEl = document.getElementById('reportPrintDate');
+            
+            function update() {
+                const now = new Date();
+                const str = now.getFullYear() + '-' + 
+                            String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                            String(now.getDate()).padStart(2, '0') + ' ' + 
+                            String(now.getHours()).padStart(2, '0') + ':' + 
+                            String(now.getMinutes()).padStart(2, '0') + ':' + 
+                            String(now.getSeconds()).padStart(2, '0');
+                if (clockEl) clockEl.innerText = str;
+                if (reportDateEl) reportDateEl.innerText = str.split(' ')[0];
+            }
+            update();
+            setInterval(update, 1000);
+        }
+
+        function setupSidebarMobile() {
+            const openBtn = document.getElementById('openSidebarBtn');
+            const closeBtn = document.getElementById('closeSidebarBtn');
+            const sidebar = document.getElementById('sidebar');
+
+            openBtn?.addEventListener('click', () => sidebar.classList.remove('-right-72'));
+            closeBtn?.addEventListener('click', () => sidebar.classList.add('-right-72'));
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('section[id^="section-"]').forEach(sec => sec.classList.add('hidden'));
+            const target = document.getElementById(`section-${tabId}`);
+            if (target) target.classList.remove('hidden');
+
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('active', 'bg-brand-600/20', 'text-brand-400', 'border', 'border-brand-500/30');
+                btn.classList.add('text-slate-400');
+            });
+
+            const activeNav = document.getElementById(`nav-${tabId}`);
+            if (activeNav) {
+                activeNav.classList.add('active', 'bg-brand-600/20', 'text-brand-400', 'border', 'border-brand-500/30');
+                activeNav.classList.remove('text-slate-400');
+            }
+
+            // Close mobile menu if open
+            document.getElementById('sidebar')?.classList.add('-right-72');
+
+            // Refresh tab specific visuals
+            if (tabId === 'dashboard') renderDashboardCharts();
+            if (tabId === 'yardMap') renderYardMap();
+            if (tabId === 'containers') filterContainersTable();
+            if (tabId === 'reports') renderReportsView();
+        }
+
+        function toggleTheme() {
+            document.documentElement.classList.toggle('dark');
+            document.documentElement.classList.toggle('light');
+            const icon = document.querySelector('#themeToggleBtn i');
+            if (document.documentElement.classList.contains('dark')) {
+                icon.className = 'fa-solid fa-moon';
+            } else {
+                icon.className = 'fa-solid fa-sun';
+            }
+        }
+
+        function renderAllViews() {
+            updateKPIs();
+            renderDashboardCharts();
+            renderQuickZoneGrid();
+            renderYardMap();
+            filterContainersTable();
+            renderReportsView();
+        }
+
+        function updateKPIs() {
+            const total = containers.length;
+            const maxCapacity = YARD_ZONES.length * ZONE_MAX_SLOTS; // 13 * 20 = 260
+            const rate = Math.round((total / maxCapacity) * 100);
+
+            const activeZones = new Set(containers.map(c => c.zone)).size;
+
+            document.getElementById('kpiTotalContainers').innerText = total;
+            document.getElementById('kpiCapacityRate').innerText = `${rate}%`;
+            document.getElementById('kpiOccupiedSlots').innerText = `${total} / ${maxCapacity} شاطئ`;
+            document.getElementById('kpiProgressBar').style.width = `${rate}%`;
+            document.getElementById('kpiActiveZones').innerText = activeZones;
+            document.getElementById('sidebarYardCapacity').innerText = `${maxCapacity} حاوية`;
+
+            // Gate in today count calculation
+            const todayStr = new Date().toISOString().split('T')[0];
+            const inToday = containers.filter(c => c.entryDate && c.entryDate.startsWith(todayStr)).length;
+            document.getElementById('kpiGateInToday').innerText = inToday;
+            document.getElementById('kpiGateOutToday').innerText = '0';
+        }
+
+        function renderDashboardCharts() {
+            // Zone distribution counts
+            const zoneCounts = YARD_ZONES.map(z => containers.filter(c => c.zone === z).length);
+
+            // Chart 1: Bar Chart
+            const ctx1 = document.getElementById('zoneDistributionChart')?.getContext('2d');
+            if (ctx1) {
+                if (zoneChartInstance) zoneChartInstance.destroy();
+
+                zoneChartInstance = new Chart(ctx1, {
+                    type: 'bar',
+                    data: {
+                        labels: YARD_ZONES,
+                        datasets: [{
+                            label: 'عدد الحاويات',
+                            data: zoneCounts,
+                            backgroundColor: 'rgba(2, 132, 199, 0.75)',
+                            borderColor: '#0284c7',
+                            borderWidth: 1,
+                            borderRadius: 6
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+                            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' }, beginAtZero: true }
+                        }
+                    }
+                });
+            }
+
+            // Chart 2: Shipping Line Doughnut
+            const lineCounts = {};
+            containers.forEach(c => {
+                lineCounts[c.line] = (lineCounts[c.line] || 0) + 1;
+            });
+
+            const ctx2 = document.getElementById('shippingLineChart')?.getContext('2d');
+            if (ctx2) {
+                if (lineChartInstance) lineChartInstance.destroy();
+
+                lineChartInstance = new Chart(ctx2, {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(lineCounts),
+                        datasets: [{
+                            data: Object.values(lineCounts),
+                            backgroundColor: ['#0284c7', '#6366f1', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { color: '#94a3b8', font: { family: 'Cairo', size: 10 } }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function renderQuickZoneGrid() {
+            const container = document.getElementById('quickZoneGrid');
+            if (!container) return;
+
+            container.innerHTML = YARD_ZONES.map(z => {
+                const count = containers.filter(c => c.zone === z).length;
+                const fillPct = Math.round((count / ZONE_MAX_SLOTS) * 100);
+                return `
+                    <div onclick="selectZoneAndNavigate('${z}')" class="p-3 bg-slate-900/80 rounded-xl border border-slate-800 hover:border-brand-500/50 cursor-pointer transition-all space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-white font-mono text-sm">${z}</span>
+                            <span class="text-xs text-brand-400 font-mono">${count}/20</span>
+                        </div>
+                        <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                            <div class="bg-brand-500 h-full" style="width: ${fillPct}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function selectZoneAndNavigate(zone) {
+            selectedYardZone = zone;
+            switchTab('yardMap');
+        }
+
+        function renderYardMap() {
+            // Render Zone Filter Pills
+            const pillsContainer = document.getElementById('zoneFilterPills');
+            if (pillsContainer) {
+                pillsContainer.innerHTML = YARD_ZONES.map(z => `
+                    <button onclick="selectedYardZone='${z}'; renderYardMap();" class="px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all whitespace-nowrap ${selectedYardZone === z ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30' : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'}">
+                        ${z}
+                    </button>
+                `).join('');
+            }
+
+            // Update Header Info
+            const countInZone = containers.filter(c => c.zone === selectedYardZone).length;
+            document.getElementById('selectedZoneBadge').innerText = selectedYardZone;
+            document.getElementById('selectedZoneTitle').innerText = `تفاصيل المربع الساحلي ${selectedYardZone}`;
+            document.getElementById('selectedZoneStats').innerText = `${countInZone} حاوية مشغولة من أصل 20 موقع (Slots)`;
+
+            // Render 20 Slots Grid
+            const slotsContainer = document.getElementById('yardGridSlots');
+            if (!slotsContainer) return;
+
+            let slotsHtml = '';
+            for (let i = 1; i <= ZONE_MAX_SLOTS; i++) {
+                const found = containers.find(c => c.zone === selectedYardZone && Number(c.slot) === i);
+                if (found) {
+                    let typeBg = 'bg-brand-600/20 border-brand-500 text-brand-300';
+                    if (found.type === 'Reefer') typeBg = 'bg-cyan-600/20 border-cyan-500 text-cyan-300';
+                    if (found.type === 'Tank' || found.type === 'Flat Rack') typeBg = 'bg-amber-600/20 border-amber-500 text-amber-300';
+
+                    slotsHtml += `
+                        <div class="slot-card p-3 rounded-xl border ${typeBg} flex flex-col justify-between h-28 relative group">
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="font-mono font-bold">#${i}</span>
+                                <span class="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-slate-900/60">${found.line}</span>
+                            </div>
+                            <div class="my-1">
+                                <div class="font-mono font-extrabold text-xs text-white tracking-wider break-all">${found.prefix} ${found.serial}</div>
+                                <div class="text-[10px] text-slate-400 mt-0.5">${found.size} - ${found.type}</div>
+                            </div>
+                            <button onclick="openGateOutModal('${found.prefix} ${found.serial}')" class="w-full py-1 rounded bg-rose-600/80 hover:bg-rose-500 text-white text-[10px] font-bold transition-all flex items-center justify-center gap-1">
+                                <i class="fa-solid fa-right-from-bracket"></i>
+                                <span>خروج</span>
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    slotsHtml += `
+                        <div onclick="openGateInForSlot('${selectedYardZone}', ${i})" class="slot-card p-3 rounded-xl border border-dashed border-slate-800 bg-slate-900/40 hover:bg-slate-800/60 cursor-pointer flex flex-col items-center justify-center text-center h-28 text-slate-600 hover:text-emerald-400 transition-all group">
+                            <span class="font-mono text-xs font-bold text-slate-500 mb-1">#${i}</span>
+                            <i class="fa-solid fa-circle-plus text-xl mb-1 group-hover:scale-110 transition-all"></i>
+                            <span class="text-[10px] font-medium">موقع شاغر</span>
+                        </div>
+                    `;
+                }
+            }
+            slotsContainer.innerHTML = slotsHtml;
+        }
+
+        function populateDropdowns() {
+            const tableZoneFilter = document.getElementById('tableZoneFilter');
+            const tableLineFilter = document.getElementById('tableLineFilter');
+            const formZone = document.getElementById('formZone');
+
+            if (tableZoneFilter) {
+                tableZoneFilter.innerHTML = `<option value="">جميع المربعات (Zones)</option>` + 
+                    YARD_ZONES.map(z => `<option value="${z}">${z}</option>`).join('');
+            }
+
+            if (formZone) {
+                formZone.innerHTML = YARD_ZONES.map(z => `<option value="${z}">${z}</option>`).join('');
+                updateFormSlotDropdown();
+            }
+
+            const lines = ['MAERSK', 'MSC', 'CMA CGM', 'HAPAG LLOYD', 'COSCO', 'EVERGREEN', 'ONE', 'OTHER'];
+            if (tableLineFilter) {
+                tableLineFilter.innerHTML = `<option value="">جميع الخطوط الملاكية</option>` + 
+                    lines.map(l => `<option value="${l}">${l}</option>`).join('');
+            }
+        }
+
+        function updateFormSlotDropdown() {
+            const zoneVal = document.getElementById('formZone')?.value || 'A-1';
+            const slotSelect = document.getElementById('formSlot');
+            if (!slotSelect) return;
+
+            const occupiedSlots = containers.filter(c => c.zone === zoneVal).map(c => Number(c.slot));
+            let optionsHtml = '';
+            for (let i = 1; i <= ZONE_MAX_SLOTS; i++) {
+                if (!occupiedSlots.includes(i)) {
+                    optionsHtml += `<option value="${i}">شاطئ / Slot #${i}</option>`;
+                }
+            }
+            slotSelect.innerHTML = optionsHtml || `<option value="">لا توجد مواقع شاغرة بهذا المربع</option>`;
+        }
+
+        function filterContainersTable() {
+            const searchVal = document.getElementById('tableSearchInput')?.value.toLowerCase().trim() || '';
+            const zoneVal = document.getElementById('tableZoneFilter')?.value || '';
+            const lineVal = document.getElementById('tableLineFilter')?.value || '';
+
+            const filtered = containers.filter(c => {
+                const fullNo = `${c.prefix}${c.serial}`.toLowerCase();
+                const matchesSearch = !searchVal || fullNo.includes(searchVal) || c.location.toLowerCase().includes(searchVal);
+                const matchesZone = !zoneVal || c.zone === zoneVal;
+                const matchesLine = !lineVal || c.line === lineVal;
+                return matchesSearch && matchesZone && matchesLine;
+            });
+
+            renderTableBody(filtered);
+        }
+
+        function renderTableBody(list) {
+            const tbody = document.getElementById('containersTableBody');
+            if (!tbody) return;
+
+            document.getElementById('tableShowingCount').innerText = list.length;
+            document.getElementById('tableTotalCount').innerText = containers.length;
+
+            if (list.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" class="p-8 text-center text-slate-500 text-xs">لا توجد حاويات مطابقة لشروط البحث</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = list.map((c, idx) => `
+                <tr class="hover:bg-slate-800/40 transition-all">
+                    <td class="p-3 text-slate-500">${idx + 1}</td>
+                    <td class="p-3 font-bold text-brand-400 font-mono tracking-wider">${c.prefix} ${c.serial}</td>
+                    <td class="p-3 font-bold text-white">${c.zone}</td>
+                    <td class="p-3 font-mono text-emerald-400">${c.location}</td>
+                    <td class="p-3 text-slate-300">${c.line}</td>
+                    <td class="p-3 text-slate-400">${c.size} (${c.type})</td>
+                    <td class="p-3 text-slate-400 text-[11px]">${c.entryDate || '2026-09-21'}</td>
+                    <td class="p-3">
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            موجود بالساحة
+                        </span>
+                    </td>
+                    <td class="p-3 text-center no-print">
+                        <button onclick="openGateOutModal('${c.prefix} ${c.serial}')" class="px-2.5 py-1 rounded bg-rose-600/80 hover:bg-rose-500 text-white text-[11px] font-semibold transition-all">
+                            خروج Gate Out
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function resetTableFilters() {
+            document.getElementById('tableSearchInput').value = '';
+            document.getElementById('tableZoneFilter').value = '';
+            document.getElementById('tableLineFilter').value = '';
+            filterContainersTable();
+        }
+
+        function openGateInModal() {
+            switchTab('gateIn');
+        }
+
+        function openGateInForZone() {
+            switchTab('gateIn');
+            const zoneSelect = document.getElementById('formZone');
+            if (zoneSelect) {
+                zoneSelect.value = selectedYardZone;
+                updateFormSlotDropdown();
+            }
+        }
+
+        function openGateInForSlot(zone, slot) {
+            switchTab('gateIn');
+            const zoneSelect = document.getElementById('formZone');
+            if (zoneSelect) {
+                zoneSelect.value = zone;
+                updateFormSlotDropdown();
+                const slotSelect = document.getElementById('formSlot');
+                if (slotSelect) slotSelect.value = slot;
+            }
+        }
+
+        function handleGateInSubmit(e) {
+            e.preventDefault();
+
+            const prefix = document.getElementById('formPrefix').value.toUpperCase().trim();
+            const serial = document.getElementById('formSerial').value.trim();
+            const zone = document.getElementById('formZone').value;
+            const slot = Number(document.getElementById('formSlot').value);
+            const line = document.getElementById('formLine').value;
+            const type = document.getElementById('formType').value;
+            const size = document.getElementById('formSize').value;
+
+            if (!slot) {
+                showToast('عفواً، اختر موقعاً شاغراً بالساحة', 'error');
+                return;
+            }
+
+            const fullNo = `${prefix} ${serial}`;
+            const exists = containers.some(c => `${c.prefix} ${c.serial}` === fullNo);
+            if (exists) {
+                showToast(`الحاوية ${fullNo} موجودة بالفعل بالساحة!`, 'error');
+                return;
+            }
+
+            const location = `${zone}-${slot}`;
+            const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+
+            const newContainer = {
+                prefix, serial, zone, slot, location, line, type, size, entryDate: nowStr
+            };
+
+            containers.unshift(newContainer);
+            saveContainersData();
+            renderAllViews();
+
+            // Reset Form
+            document.getElementById('gateInForm').reset();
+            updateFormSlotDropdown();
+
+            showToast(`تم تسجيل دخول الحاوية ${fullNo} بنجاح للـ Location ${location}`, 'success');
+            switchTab('containers');
+        }
+
+        function openGateOutModal(containerNo) {
+            pendingGateOutNo = containerNo;
+            const item = containers.find(c => `${c.prefix} ${c.serial}` === containerNo);
+            if (!item) return;
+
+            document.getElementById('modalContainerNo').innerText = containerNo;
+            document.getElementById('modalContainerLocation').innerText = item.location;
+            document.getElementById('gateOutModal').classList.remove('hidden');
+        }
+
+        function closeGateOutModal() {
+            pendingGateOutNo = null;
+            document.getElementById('gateOutModal').classList.add('hidden');
+        }
+
+        function confirmGateOutAction() {
+            if (!pendingGateOutNo) return;
+
+            containers = containers.filter(c => `${c.prefix} ${c.serial}` !== pendingGateOutNo);
+            saveContainersData();
+            renderAllViews();
+
+            showToast(`تم تسجيل خروج الحاوية ${pendingGateOutNo} بنجاح`, 'success');
+            closeGateOutModal();
+        }
+
+        function renderReportsView() {
+            const total = containers.length;
+            const maxCap = YARD_ZONES.length * ZONE_MAX_SLOTS;
+            const occRate = Math.round((total / maxCap) * 100);
+
+            document.getElementById('reportTotalCount').innerText = total;
+            document.getElementById('reportTotalBadge').innerText = total;
+            document.getElementById('reportEmptyZonesBadge').innerText = maxCap - total;
+            document.getElementById('reportOccupancyBadge').innerText = `${occRate}%`;
+
+            const tbody = document.getElementById('reportTableBody');
+            if (tbody) {
+                tbody.innerHTML = containers.map((c, i) => `
+                    <tr>
+                        <td class="p-2">${i + 1}</td>
+                        <td class="p-2 font-bold">${c.prefix} ${c.serial}</td>
+                        <td class="p-2">${c.zone}</td>
+                        <td class="p-2">${c.location}</td>
+                        <td class="p-2">${c.line}</td>
+                        <td class="p-2">${c.size} (${c.type})</td>
+                        <td class="p-2">${c.entryDate || '2026-09-21'}</td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        function exportToCSV() {
+            let csvContent = "\uFEFF"; // UTF-8 BOM for Arabic support in Excel
+            csvContent += "المسلسل,رقم الحاوية,البادئة,التسلسل,المربع,اللوكيشن,الخط الملاحي,الحجم,النوع,تاريخ الدخول\n";
+
+            containers.forEach((c, idx) => {
+                csvContent += `${idx + 1},"${c.prefix} ${c.serial}",${c.prefix},${c.serial},${c.zone},${c.location},${c.line},"${c.size}",${c.type},${c.entryDate || '2026-09-21'}\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", `تفريغ_حاويات_الساحة_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            showToast('تم تصدير ملف Excel (.CSV) بنجاح', 'success');
+        }
+
+        function handleImportCSV(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            document.getElementById('importFileName').innerText = file.name;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                const text = evt.target.result;
+                const lines = text.split('\n');
+                let addedCount = 0;
+
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
+                    const parts = line.split(',');
+                    if (parts.length >= 6) {
+                        const prefix = parts[2]?.replace(/"/g, '').trim() || 'MSKU';
+                        const serial = parts[3]?.replace(/"/g, '').trim() || '0000000';
+                        const zone = parts[4]?.replace(/"/g, '').trim() || 'A-1';
+                        const location = parts[5]?.replace(/"/g, '').trim() || `${zone}-1`;
+                        const slot = Number(location.split('-')[2]) || 1;
+
+                        const fullNo = `${prefix} ${serial}`;
+                        if (!containers.some(c => `${c.prefix} ${c.serial}` === fullNo)) {
+                            containers.push({
+                                prefix, serial, zone, slot, location,
+                                line: parts[6]?.replace(/"/g, '').trim() || 'MAERSK',
+                                size: parts[7]?.replace(/"/g, '').trim() || '40ft High Cube',
+                                type: parts[8]?.replace(/"/g, '').trim() || 'Dry',
+                                entryDate: new Date().toISOString().replace('T', ' ').substring(0, 16)
+                            });
+                            addedCount++;
+                        }
+                    }
+                }
+
+                saveContainersData();
+                renderAllViews();
+                showToast(`تم استيراد ${addedCount} حاوية جديدة بنجاح`, 'success');
+            };
+            reader.readAsText(file);
+        }
+
+        // Notification Toast System
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            let icon = 'fa-circle-info text-brand-400';
+            let borderColor = 'border-brand-500/30';
+
+            if (type === 'success') {
+                icon = 'fa-circle-check text-emerald-400';
+                borderColor = 'border-emerald-500/30';
+            } else if (type === 'error') {
+                icon = 'fa-circle-exclamation text-rose-400';
+                borderColor = 'border-rose-500/30';
+            }
+
+            toast.className = `toast-animate p-4 rounded-xl glass-panel border ${borderColor} text-white text-xs font-semibold flex items-center gap-3 shadow-2xl pointer-events-auto`;
+            toast.innerHTML = `
+                <i class="fa-solid ${icon} text-lg"></i>
+                <span class="flex-1">${message}</span>
+                <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            `;
+
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.remove();
+            }, 4000);
+        }
+    </script>
+</body>
+</html>
